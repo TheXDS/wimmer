@@ -1,0 +1,8 @@
+*~
+[Tt]humbs.db
+[Dd]esktop.ini
+*.DS_Store
+.vs/
+.vscode/
+.idea/
+.cr/
