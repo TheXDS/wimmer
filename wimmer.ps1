@@ -7,6 +7,7 @@
     [Switch] $Automagic,
     [Switch] $YesImAbsolutelySure,
     [Switch] $Shutdown,
+    [Switch] $Reboot,
     [Switch] $ForceMBR,
     [Switch] $ForceGPT,
     [Switch] $DryRun,
@@ -58,9 +59,13 @@ if ($null -ne $TargetDisk) {
 if ($DryRun) { Write-Information "-- MODO DE SIMULACIÓN --" }
 if ($YesImAbsolutelySure) { Write-Warning "Se confirmarán las operaciones peligrosas automáticamente. Espero que sepas muy bien lo que haces." }
 if ($Shutdown) { Write-Information "El equipo se apagará luego de completar la instalación." }
+if ($Reboot) { Write-Information "El equipo se reiniciará luego de completar la instalación." }
 if ($ForceMBR) { Write-Information "Forzar instalación en modo MBR" }
 if ($ForceGPT) { Write-Information "Forzar instalación en modo GPT" }
+
+if ($Shutdown -and $Reboot) { Write-Warning "Especificar -Shutdown y -Reboot a la vez no tiene sentido. -Reboot tomará precedencia." }
 if ($ForceMBR -and $ForceGPT) { Write-Warning "El argumento -ForceMBR tiene prioridad sobre -ForceGPT. Especificar ambos argumentos no tiene sentido." }
+
 
 #endregion
 
@@ -71,11 +76,13 @@ function Start-Install {
     if ($DryRun){
         if ($null -eq (Install-Windows -SystemDisk $parts.RootPartition -WimFile $WimFile -WimIndex $WimIndex)) { return }
         if ($null -eq (Install-Bootloader -WindowsDisk $parts.RootPartition -BootDisk $parts.BootPartition)) { return }
-        if ($Shutdown) { Write-Host "-- SIMULACIÓN -- Apagar el equipo" }
+        if ($Reboot) { Write-Host "-- SIMULACIÓN -- Reiniciar el equipo" ; return }
+        if ($Shutdown) { Write-Host "-- SIMULACIÓN -- Apagar el equipo" ; return }
     } else {
         if ($null -eq (Install-Windows -SystemDisk $parts.RootPartition.DriveLetter -WimFile $WimFile -WimIndex $WimIndex)) { return }
         if ($null -eq (Install-Bootloader -WindowsDisk $parts.RootPartition.DriveLetter -BootDisk $parts.BootPartition.DriveLetter)) { return }
-        if ($Shutdown) { Stop-Computer -ComputerName localhost }
+        if ($Reboot) { Restart-Computer -ComputerName localhost ; return }
+        if ($Shutdown) { Stop-Computer -ComputerName localhost ; return }
     }
 }
 
@@ -498,6 +505,8 @@ function show-MainMenu {
 l) Listar las imágenes de Windows disponibles
 i) Instalar una imagen de Windows
 q) Salir de esta utilidad
+r) Reiniciar equipo
+s) Apagar equipo
 Seleccione una opción
 "@) {
             'l' {
@@ -507,7 +516,9 @@ Seleccione una opción
                 }
             }
             'i' { Show-InstallMenu }            
-            'q' { exit } 
+            'q' { exit }
+            'r' { Restart-Computer }
+            's' { Stop-Computer }
             default {
                 Write-Host "Opción inválida." -ForegroundColor Red
             }
