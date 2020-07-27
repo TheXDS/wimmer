@@ -130,7 +130,7 @@ function Initialize-Target([System.Nullable[System.Int32]]$DiskId = $null, [Swit
     }
     else
     {
-        Write-Output "Operación cancelada. No se ha realizado ningún cambio en el sistema."
+        Write-Host "Operación cancelada. No se ha realizado ningún cambio en el sistema."
         return $null
     }
 }
@@ -245,7 +245,11 @@ function Initialize-PartTbl {
         return Initialize-Disk -Number $DiskId -PartitionStyle $PartStyle -PassThru
     } else {
         Write-Warning "LA UNIDAD $((Get-DiskDescription $disk).ToUpper()) CONTIENE INFORMACIÓN. AL REFORMATEAR LA UNIDAD, TODA ESTA INFORMACIÓN SE PERDERÁ."
-        if (Get-Confirmation -defaultVal $False -message "¿ESTÁ TOTALMENTE SEGURO QUE DESEA CONTINUAR? (s/N): ") { return $null }
+        if ($(Get-Confirmation -defaultVal $False -message "¿ESTÁ TOTALMENTE SEGURO QUE DESEA CONTINUAR? (s/N)") -eq $False)
+        {
+            Write-Host "Operación peligrosa cancelada, no se han realizado cambios al sistema."
+            return $null
+        }
         return Clear-Disk -Number $DiskId -RemoveData -RemoveOEM -Confirm:$False -PassThru | Initialize-Disk -PartitionStyle $PartStyle -PassThru
     }
 }
@@ -508,7 +512,7 @@ q) Salir de esta utilidad
 r) Reiniciar equipo
 s) Apagar equipo
 Seleccione una opción
-"@) {
+"@).ToLower()) {
             'l' {
                 Write-Host `n
                 foreach ($j in $list) {
@@ -517,8 +521,8 @@ Seleccione una opción
             }
             'i' { Show-InstallMenu }            
             'q' { exit }
-            'r' { Restart-Computer }
-            's' { Stop-Computer }
+            'r' { Restart-Computer ; exit }
+            's' { Stop-Computer ; exit }
             default {
                 Write-Host "Opción inválida." -ForegroundColor Red
             }
@@ -538,18 +542,10 @@ b) Instalar el cargador de arranque de Windows en el equipo
 q) Salir al menú principal
 Seleccione una opción
 "@).ToLower()) {
-            'a' {
-                Start-Install
-            }
-            'p' {                
-                Initialize-Target
-            }
-            'w'{
-                Install-Windows
-            }
-            'b'{
-                Install-Bootloader
-            }
+            'a' { Start-Install }
+            'p' { Initialize-Target }
+            'w'{ Install-Windows }
+            'b'{ Install-Bootloader }
             'q'{ return } 
             default {
                 Write-Host "Opción inválida." -ForegroundColor Red
