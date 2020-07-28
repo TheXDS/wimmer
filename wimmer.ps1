@@ -15,7 +15,7 @@
 )
 
 # Inicializaciones básicas...
-$ver = [System.Version]::new(2, 0, 4, 0)
+$ver = [System.Version]::new(2, 0, 5, 0)
 
 Write-Host @"
 `nTheXDS Wimmer
@@ -248,7 +248,18 @@ function Initialize-PartTbl {
         if ($(Get-Confirmation -defaultVal $False -message "¿ESTÁ TOTALMENTE SEGURO QUE DESEA CONTINUAR? (s/N)") -eq $False)
         {
             Write-Host "Operación peligrosa cancelada, no se han realizado cambios al sistema."
+            Write-Progress -Completed
             return $null
+        }
+        $Invocation = (Get-Variable MyInvocation -Scope 1).Value
+        $thisRoot = $([System.IO.FileInfo]::new($Invocation.PSScriptRoot)).Directory.Root.ToString()
+        foreach ($j in $disk | Get-Partition)
+        {
+            if ("$($j.DriveLetter):\" -eq $thisRoot) {
+                Write-Host "No se puede destruir la unidad desde la cual se ejecuta Wimmer. Alto."
+                Write-Progress -Completed
+                return $null
+            }
         }
         return Clear-Disk -Number $DiskId -RemoveData -RemoveOEM -Confirm:$False -PassThru | Initialize-Disk -PartitionStyle $PartStyle -PassThru
     }
@@ -503,7 +514,7 @@ function Select-Volume {
 #region Menús
 function show-MainMenu {
     while($True){
-        switch (Read-Host @"
+        switch ((Read-Host @"
 `nMenú principal
 ==============
 l) Listar las imágenes de Windows disponibles
