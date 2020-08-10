@@ -251,16 +251,29 @@ function Initialize-PartTbl {
             Write-Progress -Completed
             return $null
         }
+
         $Invocation = (Get-Variable MyInvocation -Scope 1).Value
-        $thisRoot = $([System.IO.FileInfo]::new($Invocation.PSScriptRoot)).Directory.Root.ToString()
-        foreach ($j in $disk | Get-Partition)
-        {
-            if ("$($j.DriveLetter):\" -eq $thisRoot) {
-                Write-Host "No se puede destruir la unidad desde la cual se ejecuta Wimmer. Alto."
+        if ($Invocation) {
+            $thisRoot = $([System.IO.FileInfo]::new($Invocation.PSScriptRoot)).Directory.Root.ToString()
+            foreach ($j in $disk | Get-Partition)
+            {
+                if ("$($j.DriveLetter):\" -eq $thisRoot) {
+                    Write-Host "No se puede destruir la unidad desde la cual se ejecuta Wimmer. Alto."
+                    Write-Progress -Completed
+                    return $null
+                }
+            }
+        }
+        else {
+            Write-Warning "No fue posible comprobar si Wimmer se ejecuta desde una unidad de almacenamiento local."
+            if ($(Get-Confirmation -defaultVal $False -message "SIENTO SER TAN INSISTENTE, PERO ¿ESTÁ TOTALMENTE SEGURO QUE DESEA CONTINUAR? DE NUEVO, LA UNIDAD ES $((Get-DiskDescription $disk).ToUpper()) (s/N)") -eq $False)
+            {
+                Write-Host "Operación peligrosa cancelada, no se han realizado cambios al sistema."
                 Write-Progress -Completed
                 return $null
             }
         }
+
         return Clear-Disk -Number $DiskId -RemoveData -RemoveOEM -Confirm:$False -PassThru | Initialize-Disk -PartitionStyle $PartStyle -PassThru
     }
 }
