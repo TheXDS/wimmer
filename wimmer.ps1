@@ -252,8 +252,8 @@ function Initialize-PartTbl {
             return $null
         }
 
-        $Invocation = (Get-Variable MyInvocation -Scope 1).Value
-        if ($Invocation) {
+        try {
+            $Invocation = (Get-Variable MyInvocation -Scope 1).Value
             $thisRoot = $([System.IO.FileInfo]::new($Invocation.PSScriptRoot)).Directory.Root.ToString()
             foreach ($j in $disk | Get-Partition)
             {
@@ -264,7 +264,7 @@ function Initialize-PartTbl {
                 }
             }
         }
-        else {
+        catch {
             Write-Warning "No fue posible comprobar si Wimmer se ejecuta desde una unidad de almacenamiento local."
             if ($(Get-Confirmation -defaultVal $False -message "SIENTO SER TAN INSISTENTE, PERO ¿ESTÁ TOTALMENTE SEGURO QUE DESEA CONTINUAR? DE NUEVO, LA UNIDAD ES $((Get-DiskDescription $disk).ToUpper()) (s/N)") -eq $False)
             {
