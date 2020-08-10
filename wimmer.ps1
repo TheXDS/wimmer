@@ -15,7 +15,7 @@
 )
 
 # Inicializaciones básicas...
-$ver = [System.Version]::new(2, 0, 5, 0)
+$ver = [System.Version]::new(2, 0, 5, 1)
 
 Write-Host @"
 `nTheXDS Wimmer
