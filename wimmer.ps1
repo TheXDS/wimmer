@@ -15,7 +15,7 @@
 )
 
 # Inicializaciones básicas...
-$ver = [System.Version]::new(2, 0, 5, 1)
+$ver = [System.Version]::new(2, 0, 5, 2)
 
 Write-Host @"
 `nTheXDS Wimmer
@@ -337,6 +337,7 @@ function Get-DiskDescription {
 }
 
 function Get-Images {
+
     param ([System.IO.DirectoryInfo] $Path,  [System.String[]] $Extensions)
     $imgs = [System.Collections.Generic.List[System.String]]::new()
     foreach ($j in $Extensions) {
@@ -531,6 +532,7 @@ function show-MainMenu {
 `nMenú principal
 ==============
 l) Listar las imágenes de Windows disponibles
+d) Información detallada de una imagen
 i) Instalar una imagen de Windows
 q) Salir de esta utilidad
 r) Reiniciar equipo
@@ -539,10 +541,9 @@ Seleccione una opción
 "@).ToLower()) {
             'l' {
                 Write-Host `n
-                foreach ($j in $list) {
-                    Show-DetailedImageInfo $j
-                }
+                foreach ($j in $list) { $j }
             }
+            'd' { Show-DetailedImageInfo -file $($list[(Select-Item -Collection $list) - 1]) }
             'i' { Show-InstallMenu }            
             'q' { exit }
             'r' { Restart-Computer ; exit }
