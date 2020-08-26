@@ -15,7 +15,7 @@
 )
 
 # Inicializaciones básicas...
-$ver = [System.Version]::new(2, 0, 5, 2)
+$ver = [System.Version]::new(2, 0, 5, 3)
 
 Write-Host @"
 `nTheXDS Wimmer
@@ -37,22 +37,34 @@ if (!([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]:
 #region Sanidad de argumentos...
 if ($null -ne $ImagesPath -and $ImagesPath -ne ""){
     if (!$ImagesPath.Exists) {
-        $exception = New-Object -TypeName System.DirectoryNotFoundException -ArgumentList "La ruta de imágenes especificada no es válida.", $ImagesPath
-        throw $exception
+        New-Exception "System.DirectoryNotFoundException" -args "La ruta de imágenes especificada no es válida.", $ImagesPath
+
+        # $exception = New-Object -TypeName System.DirectoryNotFoundException -ArgumentList "La ruta de imágenes especificada no es válida.", $ImagesPath
+        # throw $exception
+
     }
-    if ($null -ne $WimFile -and $WimFile -ne "") { Write-Warning "El argumento -WimFile invalida al argumento -ImagesPath. Especificar ambos argumentos no tiene sentido." }
+    if (($null -ne $WimFile) -and ($WimFile -ne "")) { Write-Warning "El argumento -WimFile invalida al argumento -ImagesPath. Especificar ambos argumentos no tiene sentido." }
 }
-if ($null -ne $WimFile -and $WimFile -ne ""){
+if (($null -ne $WimFile) -and ($WimFile -ne "")){
     if (![System.IO.File]::Exists($WimFile)) {
-        $exception = New-Object -TypeName System.FileNotFoundException -ArgumentList "El archivo de imagen no existe.", $WimFile
-        throw $exception
+        New-Exception "System.FileNotFoundException" -args "El archivo de imagen no existe.", $WimFile
+
+        # try {
+        #     $exception = New-Object -TypeName System.FileNotFoundException -ArgumentList "El archivo de imagen no existe.", $WimFile
+        #     throw $exception
+        # }
+        # catch {
+        #     Write-Error ""
+        # }
     }
 }
 
 if ($null -ne $TargetDisk) {
     if ($null -eq @(Get-Disk)[$TargetDisk]) {
-        $exception = New-Object -TypeName System.ArgumentOutOfRangeException -ArgumentList "TargetDisk", "El disco especificado no existe." 
-        throw $exception
+        New-Exception "System.ArgumentOutOfRangeException" -args "TargetDisk", "El disco especificado no existe." 
+
+        # $exception = New-Object -TypeName System.ArgumentOutOfRangeException -ArgumentList "TargetDisk", "El disco especificado no existe." 
+        # throw $exception
     }
 }
 
@@ -331,6 +343,17 @@ function New-SystemPartition {
 #endregion
 
 #region Auxiliares
+function New-Exception ([string] $exType, [System.Array] $args)
+{
+    try {
+        $exception = New-Object -TypeName $exType -ArgumentList $args
+        throw $exception
+    }
+    catch {
+        throw "${exType}: $args"
+    }
+}
+
 function Get-DiskDescription {
     [OutputType([string])] param([ciminstance] $disk)
     "$($disk.MediaType) $($disk.FriendlyName) ($(Show-AsGbytes $disk.Size) GB)"
