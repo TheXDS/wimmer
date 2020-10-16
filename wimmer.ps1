@@ -1,21 +1,56 @@
-﻿param
+﻿[CmdletBinding(DefaultParameterSetName = 'Interactive')]
+param
 (
-    [System.String] $WimFile = $null,
-    [System.IO.DirectoryInfo] $ImagesPath = $pwd.Path,
-    [System.Nullable[System.Int32]] $TargetDisk = $null,
-    [System.Nullable[System.Int32]] $WimIndex = $null,
+    [Parameter(ParameterSetName = 'Automagic', Mandatory = $true, Position = 0)]
     [Switch] $Automagic,
+    [Parameter(ParameterSetName = 'Automagic', Mandatory = $true, Position = 1)]
+    [System.IO.FileInfo] $WimFile = $null,
+    [Parameter(ParameterSetName = 'Automagic', Mandatory = $true, Position = 2)]
+    [System.Nullable[int]] $WimIndex = $null,
+
+    [Parameter(ParameterSetName = 'Interactive')]
+    [Parameter(ParameterSetName = 'Automagic', Mandatory = $true)]
+    [Parameter(ParameterSetName = 'Autoby', Mandatory = $true, Position = 0)]
+    [System.Nullable[int]] $TargetDisk = $null,
+
+    [Parameter(ParameterSetName = 'Autoby', Mandatory = $true)]
+    [ValidateSet('Manufacturer', 'Model', 'SerialNumber', IgnoreCase = $true)]
+    [string] $AutoBy,
+
+    [Parameter(ParameterSetName = 'Autoby', Mandatory = $true)]
+    [System.IO.FileInfo] $AutoFile,
+
+    [Parameter(ParameterSetName = 'Interactive')]
+    [Parameter(ParameterSetName = 'Autoby')]
+    [System.IO.DirectoryInfo] $ImagesPath = $pwd.Path,
+
+    [Parameter(ParameterSetName = 'Automagic')]
+    [Parameter(ParameterSetName = 'Autoby')]
+    [ValidateSet('Shutdown', 'Reboot', IgnoreCase = $true)]
+    [string] $PowerAction,
+
+    [Parameter(ParameterSetName = 'Interactive')]
+    [Parameter(ParameterSetName = 'Automagic')]
+    [Parameter(ParameterSetName = 'Autoby')]    
+    [ValidateSet('MBR', 'GPT', IgnoreCase = $true)]
+    [string] $ForceBootMode,
+
+    [Parameter(ParameterSetName = 'Interactive')]
+    [Parameter(ParameterSetName = 'Automagic', Mandatory = $true)]
+    [Parameter(ParameterSetName = 'Autoby', Mandatory = $true)]
     [Switch] $YesImAbsolutelySure,
-    [Switch] $Shutdown,
-    [Switch] $Reboot,
-    [Switch] $ForceMBR,
-    [Switch] $ForceGPT,
+
+    [Parameter(ParameterSetName = 'Interactive')]
+    [Parameter(ParameterSetName = 'Automagic')]
+    [Parameter(ParameterSetName = 'Autoby')]
     [Switch] $DryRun,
+
+    [Parameter(ParameterSetName = 'Version', Mandatory = $true)]
     [Switch] $Version
 )
 
 # Inicializaciones básicas...
-$ver = [System.Version]::new(2, 0, 5, 3)
+$ver = [System.Version]::new(3, 0, 0, 0)
 
 Write-Host @"
 `nTheXDS Wimmer
@@ -27,56 +62,28 @@ bajo licencia GPLv3
 
 # La versión igual aparece en el banner. No es necesario volver a mostrarla.
 if ($Version) { exit }
-if (!([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator"))
-{
-    Write-Error "Este script debe ejecutarse con permisos administrativos."
-    exit
-}
 
+$ForceGPT = $ForceBootMode.ToLower() -eq 'gpt'
+$ForceMBR = $ForceBootMode.ToLower() -eq 'mbr'
+$Shutdown = $PowerAction.ToLower() -eq 'shutdown'
+$Reboot = $PowerAction.ToLower() -eq 'reboot'
 
 #region Sanidad de argumentos...
-if ($null -ne $ImagesPath -and $ImagesPath -ne ""){
-    if (!$ImagesPath.Exists) {
-        New-Exception "System.DirectoryNotFoundException" -args "La ruta de imágenes especificada no es válida.", $ImagesPath
-
-        # $exception = New-Object -TypeName System.DirectoryNotFoundException -ArgumentList "La ruta de imágenes especificada no es válida.", $ImagesPath
-        # throw $exception
-
-    }
-    if (($null -ne $WimFile) -and ($WimFile -ne "")) { Write-Warning "El argumento -WimFile invalida al argumento -ImagesPath. Especificar ambos argumentos no tiene sentido." }
+if ($ImagesPath -and !$ImagesPath.Exists) {
+    New-Exception "System.DirectoryNotFoundException" -args "La ruta de imágenes especificada no es válida.", $ImagesPath
 }
-if (($null -ne $WimFile) -and ($WimFile -ne "")){
-    if (![System.IO.File]::Exists($WimFile)) {
-        New-Exception "System.FileNotFoundException" -args "El archivo de imagen no existe.", $WimFile
-
-        # try {
-        #     $exception = New-Object -TypeName System.FileNotFoundException -ArgumentList "El archivo de imagen no existe.", $WimFile
-        #     throw $exception
-        # }
-        # catch {
-        #     Write-Error ""
-        # }
-    }
+if ($WimFile -and !$WimFile.Exists){
+    New-Exception "System.FileNotFoundException" -args "El archivo de imagen no existe.", $WimFile
 }
-
-if ($null -ne $TargetDisk) {
-    if ($null -eq @(Get-Disk)[$TargetDisk]) {
-        New-Exception "System.ArgumentOutOfRangeException" -args "TargetDisk", "El disco especificado no existe." 
-
-        # $exception = New-Object -TypeName System.ArgumentOutOfRangeException -ArgumentList "TargetDisk", "El disco especificado no existe." 
-        # throw $exception
-    }
+if ($null -ne $TargetDisk -and $null -eq @(Get-Disk)[$TargetDisk]) {
+    New-Exception "System.ArgumentOutOfRangeException" -args "TargetDisk", "El disco especificado no existe." 
 }
 
 if ($DryRun) { Write-Information "-- MODO DE SIMULACIÓN --" }
 if ($YesImAbsolutelySure) { Write-Warning "Se confirmarán las operaciones peligrosas automáticamente. Espero que sepas muy bien lo que haces." }
 if ($Shutdown) { Write-Information "El equipo se apagará luego de completar la instalación." }
 if ($Reboot) { Write-Information "El equipo se reiniciará luego de completar la instalación." }
-if ($ForceMBR) { Write-Information "Forzar instalación en modo MBR" }
-if ($ForceGPT) { Write-Information "Forzar instalación en modo GPT" }
-
-if ($Shutdown -and $Reboot) { Write-Warning "Especificar -Shutdown y -Reboot a la vez no tiene sentido. -Reboot tomará precedencia." }
-if ($ForceMBR -and $ForceGPT) { Write-Warning "El argumento -ForceMBR tiene prioridad sobre -ForceGPT. Especificar ambos argumentos no tiene sentido." }
+if ($ForceBootMode) { Write-Information "Forzar instalación en modo $($ForceBootMode.ToUpper())" }
 
 
 #endregion
@@ -153,23 +160,42 @@ function Install-Windows {
     [string]$WimFile = $null,
     [System.Nullable[System.Int32]] $WimIndex = $null)
     
-    if ($null -eq $WimFile -or $WimFile -eq "") {
-        $indx = Select-Item -Collection $list -Prompt "Seleccione una imagen de instalación" -Cancellable
-        if ($null -eq $indx) { return $null }
-        $WimFile = $list[$indx-1]
+    if ($AutoBy){
+        $imgsSelector = Import-Csv -Path $AutoFile -Header 'Value', 'File', 'Index'
+        switch ($AutoBy.ToLower()) {
+            'manufacturer' { $val = $(Get-CimInstance -ClassName Win32_ComputerSystem).Manufacturer }
+            'model' { $val = $(Get-CimInstance -ClassName Win32_ComputerSystem).Model }
+            'serialnumber' { $val = $(Get-CimInstance -ClassName Win32_BIOS).SerialNumber }
+        }
+
+        foreach ($item in $imgsSelector) {
+            if ($item.Value -eq $val){
+                $WimFile = $item.File
+                $WimIndex = $item.Index
+                break
+            }
+        }
     }
+    else {
 
-    if ($null -eq $WimIndex) {
-        $WimIndex = Select-Item -Collection @(Get-WindowsImage -ImagePath:$WimFile) -Prompt "Seleccione una versión a instalar" -Cancellable -FormatDelegate { param($img) Get-BasicImageIndexInfo $img }
-        if ($null -eq $WimIndex) { return $null }
-    }
-
-    if ($null -eq $SystemDisk) {
-        $vols = @(@(get-volume) | where-Object {$_.DriveType -eq "Fixed" -and (Get-Partition -Volume $_).Type -eq "Basic"})
-
-        $indx = Select-Item -Collection $vols -FormatDelegate {[OutputType([string])] param($v) return "$($v.DriveLetter) '$($v.FileSystemLabel)'" } -Prompt "Seleccione una unidad de instalación" -Cancellable
-        if ($null -eq $indx) { return $null }
-        $SystemDisk = $vols[$indx - 1].DriveLetter
+        if ($null -eq $WimFile -or $WimFile -eq "") {
+            $indx = Select-Item -Collection $list -Prompt "Seleccione una imagen de instalación" -Cancellable
+            if ($null -eq $indx) { return $null }
+            $WimFile = $list[$indx-1]
+        }
+        
+        if ($null -eq $WimIndex) {
+            $WimIndex = Select-Item -Collection @(Get-WindowsImage -ImagePath:$WimFile) -Prompt "Seleccione una versión a instalar" -Cancellable -FormatDelegate { param($img) Get-BasicImageIndexInfo $img }
+            if ($null -eq $WimIndex) { return $null }
+        }
+        
+        if ($null -eq $SystemDisk) {
+            $vols = @(@(get-volume) | where-Object {$_.DriveType -eq "Fixed" -and (Get-Partition -Volume $_).Type -eq "Basic"})
+            
+            $indx = Select-Item -Collection $vols -FormatDelegate {[OutputType([string])] param($v) return "$($v.DriveLetter) '$($v.FileSystemLabel)'" } -Prompt "Seleccione una unidad de instalación" -Cancellable
+            if ($null -eq $indx) { return $null }
+            $SystemDisk = $vols[$indx - 1].DriveLetter
+        }
     }
 
     $name = (Get-WindowsImage -ImagePath $([System.IO.Path]::GetFullPath($WimFile)))[$WimIndex - 1].ImageName
@@ -343,14 +369,17 @@ function New-SystemPartition {
 #endregion
 
 #region Auxiliares
-function New-Exception ([string] $exType, [System.Array] $args)
-{
+
+function Get-IsAdmin() {
+    return ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")
+}
+function New-Exception ([string] $exType, [System.Array] $exargs) {
     try {
-        $exception = New-Object -TypeName $exType -ArgumentList $args
+        $exception = New-Object -TypeName $exType -ArgumentList $exargs
         throw $exception
     }
     catch {
-        throw "${exType}: $args"
+        throw "${exType}: $exargs"
     }
 }
 
@@ -604,6 +633,12 @@ Seleccione una opción
 #endregion
 
 # Bloque interactivo
+if (!(Get-IsAdmin))
+{
+    Write-Error "Este script debe ejecutarse con permisos administrativos."
+    exit
+}
+
 if ($null -eq $WimFile -or $WimFile -eq ""){
 
     $list = [System.Collections.Generic.List[System.String]](Get-Images -Path $ImagesPath -Extensions "esd", "wim", "swm")    
